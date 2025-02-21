@@ -102,7 +102,7 @@ from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_applicati
 from aiohttp import web
 
 async def on_startup(bot: Bot):
-    webhook_url = "https://YOUR-RENDER-URL/webhook"
+    webhook_url = "https://chatbot-btc4.onrender.com/webhook"
     await bot.set_webhook(webhook_url)
 
 async def on_shutdown(bot: Bot):

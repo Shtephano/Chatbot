@@ -1,0 +1,5 @@
+aiogram
+openai
+aiohttp
+ffmpeg-python
+pydantic<2.0.0

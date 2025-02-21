@@ -1,53 +1,55 @@
 import os
-import openai
-import asyncio
 import aiohttp
 import ffmpeg
 from aiogram import Bot, Dispatcher, types
 from aiogram.types import Message
 from aiogram.filters import Command
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+from aiohttp import web
+import openai
+from pydantic import BaseModel
 
-# Подставьте свои API-ключи
-TELEGRAM_BOT_TOKEN = "7899586060:AAHtuIWtfCYqP5tNB4KZUVh_A43bWwBhK60"
-OPENAI_API_KEY = "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"
+# 🔹 Загружаем API-ключи из переменных окружения
+TELEGRAM_BOT_TOKEN = os.getenv("7899586060:AAHtuIWtfCYqP5tNB4KZUVh_A43bWwBhK60")
+OPENAI_API_KEY = os.getenv("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")
 
-# Инициализация бота
+# 🔹 Создаем бота и диспетчер
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 dp = Dispatcher()
 
-# Обработчик команды /start
+# ✅ Модель для ChatGPT
+class ChatGPTRequest(BaseModel):
+    model: str = "gpt-4"
+    messages: list
+
+# ✅ Обработчик команды /start
 @dp.message(Command("start"))
 async def start(message: Message):
-    await message.answer("Привет! Я бот с ChatGPT. Напиши текст или отправь голосовое сообщение, и я его формализую!")
+    await message.answer("Привет! Я работаю через Webhook и могу распознавать голосовые сообщения.")
 
-# Функция для загрузки и конвертации голосового сообщения
-async def convert_voice(voice: types.Voice):
-    file = await bot.get_file(voice.file_id)
-    file_path = file.file_path
+# ✅ Обработчик голосовых сообщений
+@dp.message(types.Voice)
+async def voice_message_handler(message: Message):
+    await message.answer("⏳ Распознаю голосовое сообщение...")
 
-    # Загружаем файл
-    file_url = f"https://api.telegram.org/file/bot{TELEGRAM_BOT_TOKEN}/{file_path}"
+    # 🔹 Получаем ссылку на голосовой файл
+    file = await bot.get_file(message.voice.file_id)
+    file_url = f"https://api.telegram.org/file/bot{TELEGRAM_BOT_TOKEN}/{file.file_path}"
+
+    # 🔹 Скачиваем голосовой файл
     async with aiohttp.ClientSession() as session:
         async with session.get(file_url) as resp:
             if resp.status == 200:
                 with open("voice.ogg", "wb") as f:
                     f.write(await resp.read())
 
-    # Конвертируем в MP3 (Whisper API поддерживает mp3, wav, m4a)
+    # 🔹 Конвертируем в MP3
     input_file = "voice.ogg"
     output_file = "voice.mp3"
     ffmpeg.input(input_file).output(output_file, format="mp3").run(overwrite_output=True)
 
-    return output_file
-
-# Обработчик голосовых сообщений
-@dp.message(types.Voice)
-async def voice_message_handler(message: Message):
-    await message.answer("Распознаю и формализую голосовое сообщение...")
-
-    # Конвертируем голос в текст
-    audio_file = await convert_voice(message.voice)
-    with open(audio_file, "rb") as f:
+    # 🔹 Распознаем текст через Whisper API
+    with open(output_file, "rb") as f:
         response = openai.Audio.transcribe(
             model="whisper-1",
             file=f,
@@ -55,59 +57,28 @@ async def voice_message_handler(message: Message):
         )
         text = response["text"]
 
-    # Формализуем текст с помощью ChatGPT
-    formatted_prompt = f"""
-    Ты — помощник, который формализует текст. Преобразуй данный текст в структурированный формат:
-    
-    1. Выдели главные идеи.
-    2. Создай краткое резюме.
-    3. Представь информацию в виде списка, если это возможно.
-    
-    Исходный текст: {text}
-    """
+    await message.answer(f"📌 Распознанный текст: {text}")
 
+    # 🔹 Отправляем текст в ChatGPT
+    chat_request = ChatGPTRequest(messages=[{"role": "user", "content": text}])
     chat_response = openai.ChatCompletion.create(
-        model="gpt-4",
-        messages=[{"role": "user", "content": formatted_prompt}],
+        model=chat_request.model,
+        messages=chat_request.messages,
         api_key=OPENAI_API_KEY
     )
-    formatted_answer = chat_response["choices"][0]["message"]["content"]
+    answer = chat_response["choices"][0]["message"]["content"]
 
-    await message.answer(f"📌 **Формализованный текст:**\n{formatted_answer}")
+    await message.answer(answer)
 
-# Обработчик текстовых сообщений
-@dp.message()
-async def chat_with_gpt(message: Message):
-    formatted_prompt = f"""
-    Ты — помощник, который формализует текст. Преобразуй данный текст в структурированный формат:
-    
-    1. Выдели главные идеи.
-    2. Создай краткое резюме.
-    3. Представь информацию в виде списка, если это возможно.
-    
-    Исходный текст: {message.text}
-    """
-
-    response = openai.ChatCompletion.create(
-        model="gpt-4",
-        messages=[{"role": "user", "content": formatted_prompt}],
-        api_key=OPENAI_API_KEY
-    )
-    formatted_answer = response["choices"][0]["message"]["content"]
-
-    await message.answer(f"📌 **Формализованный текст:**\n{formatted_answer}")
-
-# Запуск бота
-from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
-from aiohttp import web
-
+# ✅ Устанавливаем Webhook
 async def on_startup(bot: Bot):
-    webhook_url = "https://chatbot-btc4.onrender.com/webhook"
+    webhook_url = "https://chatbot-btc4.onrender.com/webhook"  # Укажите ваш Render URL
     await bot.set_webhook(webhook_url)
 
 async def on_shutdown(bot: Bot):
     await bot.delete_webhook()
 
+# ✅ Запуск Aiohttp Web Server для Webhook
 app = web.Application()
 webhook_handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
 webhook_handler.register(app, path="/webhook")
@@ -115,6 +86,3 @@ setup_application(app, dp, bot=bot)
 
 if __name__ == "__main__":
     web.run_app(app, host="0.0.0.0", port=8000)
-
-if __name__ == "__main__":
-    asyncio.run(main())

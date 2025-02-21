@@ -98,8 +98,23 @@ async def chat_with_gpt(message: Message):
     await message.answer(f"📌 **Формализованный текст:**\n{formatted_answer}")
 
 # Запуск бота
-async def main():
-    await dp.start_polling(bot)
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
+from aiohttp import web
+
+async def on_startup(bot: Bot):
+    webhook_url = "https://YOUR-RENDER-URL/webhook"
+    await bot.set_webhook(webhook_url)
+
+async def on_shutdown(bot: Bot):
+    await bot.delete_webhook()
+
+app = web.Application()
+webhook_handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
+webhook_handler.register(app, path="/webhook")
+setup_application(app, dp, bot=bot)
+
+if __name__ == "__main__":
+    web.run_app(app, host="0.0.0.0", port=8000)
 
 if __name__ == "__main__":
     asyncio.run(main())

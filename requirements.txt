@@ -1,4 +1,0 @@
-aiogram
-openai
-aiohttp
-ffmpeg-python

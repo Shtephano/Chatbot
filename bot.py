@@ -10,8 +10,15 @@ import openai
 from pydantic import BaseModel
 
 # 🔹 Загружаем API-ключи из переменных окружения
-TELEGRAM_BOT_TOKEN = os.getenv("7899586060:AAHtuIWtfCYqP5tNB4KZUVh_A43bWwBhK60")
-OPENAI_API_KEY = os.getenv("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")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "7899586060:AAHtuIWtfCYqP5tNB4KZUVh_A43bWwBhK60")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "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")
+
+# ✅ Проверяем, установлен ли токен
+if TELEGRAM_BOT_TOKEN == "FAKE_TELEGRAM_BOT_TOKEN":
+    raise ValueError("❌ Ошибка: TELEGRAM_BOT_TOKEN не установлен! Добавьте его в Render.")
+
+if OPENAI_API_KEY == "FAKE_OPENAI_API_KEY":
+    raise ValueError("❌ Ошибка: OPENAI_API_KEY не установлен! Добавьте его в Render.")
 
 # 🔹 Создаем бота и диспетчер
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
@@ -25,7 +32,7 @@ class ChatGPTRequest(BaseModel):
 # ✅ Обработчик команды /start
 @dp.message(Command("start"))
 async def start(message: Message):
-    await message.answer("Привет! Я работаю через Webhook и могу распознавать голосовые сообщения.")
+    await message.answer("Привет! Я бот с Webhook, который умеет распознавать голосовые сообщения 🎤.")
 
 # ✅ Обработчик голосовых сообщений
 @dp.message(types.Voice)
@@ -72,7 +79,7 @@ async def voice_message_handler(message: Message):
 
 # ✅ Устанавливаем Webhook
 async def on_startup(bot: Bot):
-    webhook_url = "https://chatbot-btc4.onrender.com/webhook"  # Укажите ваш Render URL
+    webhook_url = "https://chatbot-btc4.onrender.com/webhook"  # Замените на ваш Render URL
     await bot.set_webhook(webhook_url)
 
 async def on_shutdown(bot: Bot):
